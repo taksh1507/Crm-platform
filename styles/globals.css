@@ -1,3 +1,8 @@
+/* Import Tailwind CSS utilities, components, and base styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Global CSS: Reset default browser styles and set base styling */
 
 /* Remove default margins and padding, use border-box for easier sizing */
