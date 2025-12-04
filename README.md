@@ -1,174 +1,72 @@
-# LearnLynk – Technical Assessment
+# LearnLynk  Technical Assessment
 
-Complete full-stack CRM application demonstrating database design, security policies, backend functions, and responsive frontend with real-time updates.
+## SECTION 1  Supabase Schema Challenge
+**File**: ackend/schema.sql
 
-## Project Structure
+Creates 3 tables with all requirements:
+- **leads**: id, tenant_id, owner_id, team_id, name, email, phone, stage, created_at, updated_at
+- **applications**: id, tenant_id, lead_id (FK), status, created_at, updated_at
+- **tasks**: id, tenant_id, application_id (FK), type, status, due_at, created_at, updated_at
 
-```
-├── backend/
-│   ├── schema.sql                    # PostgreSQL schema with 3 tables and 9 indexes
-│   ├── rls_policies.sql              # Row-Level Security for multi-tenant access
-│   └── edge-functions/
-│       └── create-task/index.ts      # Serverless task creation with validation
-├── pages/
-│   ├── _app.tsx                      # React Query provider setup
-│   └── dashboard/today.tsx           # Task dashboard with real-time updates
-├── styles/
-│   └── globals.css                   # Base CSS reset and styling
-├── .env.local                        # Supabase credentials
-├── package.json                      # Dependencies and scripts
-├── tailwind.config.js                # Tailwind CSS configuration
-└── tsconfig.json                     # TypeScript configuration
-```
+**Constraints & Indexes**:
+- Foreign keys: applications.lead_id  leads(id), tasks.application_id  applications(id)
+- CHECK: tasks.type IN ('call', 'email', 'review')
+- CHECK: tasks.due_at >= created_at
+- 9 indexes: leads(tenant_id, owner_id, stage, created_at), applications(tenant_id, lead_id), tasks(tenant_id, due_at, status)
+- REPLICA IDENTITY FULL for Supabase Realtime
 
-## Implementation Summary
+## SECTION 2  RLS & Policies Test
+**File**: ackend/rls_policies.sql
 
-### 1. Database Schema (`backend/schema.sql`)
+Row-Level Security policies on leads table:
+- **SELECT**: Admins see all leads in tenant; counselors see leads assigned to them OR their teams
+- **INSERT**: Only admins and counselors can create leads
 
-**Three main tables:**
-- **leads**: Prospects with owner/team assignment, multi-tenant support
-- **applications**: Conversion events linked to leads with cascade delete
-- **tasks**: Work items with type constraints (call/email/review) and date validation
+Uses JWT claims: uth.jwt() ->> 'role' and uth.jwt() ->> 'user_id' for policy enforcement.
 
-**Key features:**
-- UUID primary keys with auto-generation
-- Foreign key relationships with ON DELETE CASCADE
-- CHECK constraints: task types restricted to valid enum, due_at ≥ created_at
-- 9 performance indexes for common queries
-- REPLICA IDENTITY FULL for Supabase Realtime support
+## SECTION 3  Edge Function Task
+**File**: ackend/edge-functions/create-task/index.ts
 
-### 2. Row-Level Security Policies (`backend/rls_policies.sql`)
+POST /create-task endpoint that:
+1. Accepts JSON: { "application_id": "uuid", "task_type": "call|email|review", "due_at": "ISO-timestamp" }
+2. Validates:
+   - task_type must be call, email, or review
+   - due_at must be in the future
+   - application_id must be valid UUID
+3. Inserts task into Supabase tasks table
+4. Broadcasts Supabase Realtime event: 	ask.created
+5. Returns: { "success": true, "task_id": "uuid" } on success
+   Returns: { "success": false, "error": "message" } with 400/500 status on failure
 
-**Enforces multi-tenant isolation on leads table:**
-- **SELECT**: Admins see all tenant leads; counselors see own/team leads only
-- **INSERT**: Only admins/counselors can create leads
-- **UPDATE**: Owners and team members can edit their leads
-- **DELETE**: Admins only
+## SECTION 4  Mini Frontend Exercise
+**File**: pages/dashboard/today.tsx
 
-Policies extract tenant_id and user roles from Supabase JWT claims.
+Next.js page that:
+1. Fetches tasks due today from Supabase
+2. Displays in table:
+   - Task type (call/email/review)
+   - Application ID
+   - Due date (formatted for user's locale)
+   - Status
+3. "Mark Complete" button  updates Supabase  refreshes UI via React Query
+4. Shows loading spinner while fetching
+5. Shows error message if query fails
+6. Displays task statistics (total, pending, completed)
 
-### 3. Edge Function (`backend/edge-functions/create-task/index.ts`)
+Uses React Query for state management and data fetching.
 
-TypeScript serverless function for task creation:
-- Input validation (task type, UUID format, future dates)
-- Automatic tenant_id lookup from application
-- Supabase Realtime event broadcasting
-- CORS preflight support
-- Comprehensive error handling (400/500 responses)
+## SECTION 5  Stripe Checkout Integration
 
-### 4. Frontend Dashboard (`pages/dashboard/today.tsx`)
+Stripe implementation flow:
 
-React component with real-time task management:
-- React Query for efficient data fetching (60s refetch, 30s stale time)
-- Displays pending tasks due today
-- Mark Complete functionality with optimistic updates
-- Loading/error states
-- Task statistics (total, pending, completed counts)
-- Responsive design with Tailwind CSS
-- Time formatting for user's locale
-
-### 5. Stripe Checkout Implementation Guide
-
-**Integration flow for application fees:**
-
-1. **Payment Initiation**: Create `payment_requests` record with application_id, amount, status='pending'
-2. **Stripe Session**: Generate Stripe Checkout Session, store session_id and checkout_url
-3. **Webhook Handler**: Listen for `checkout.session.completed` to verify payment success
-4. **Update Status**: Set `payment_requests.status='paid'` and record `paid_at` timestamp
-5. **Application State**: Transition application from 'pending_payment' to 'active'
-6. **Failure Handling**: Handle `checkout.session.expired` for retry scenarios
+1. Create payment_requests table with columns: id, application_id, amount, currency, status ('pending'|'paid'|'failed'), stripe_session_id, stripe_url, created_at, paid_at
+2. When user initiates checkout, create a Stripe Checkout Session via Stripe API and store session_id and checkout_url in payment_requests
+3. Set up webhook endpoint to listen for checkout.session.completed event from Stripe
+4. On webhook, verify the session amount matches the stored payment_request, then update status='paid' and record paid_at timestamp
+5. Update the related application status from 'pending_payment' to 'active' and optionally record payment in application timeline/events
+6. Handle checkout.session.expired webhook to mark payment_requests as 'failed' and allow user to retry
 
 ---
 
-## Setup Instructions
-
-### Prerequisites
-- Node.js 18+
-- Supabase account (https://supabase.com)
-
-### Environment Configuration
-
-Create `.env.local`:
-```
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-```
-
-Get credentials from Supabase project > Settings > API.
-
-### Database Initialization
-
-1. Open Supabase SQL Editor: https://app.supabase.com
-2. Create new query, paste entire `backend/schema.sql`, click **Run**
-   - Creates tables, indexes, constraints, and test data
-3. Create another query, paste `backend/rls_policies.sql`, click **Run**
-   - Enables Row-Level Security on leads table
-4. Database is ready!
-
-### Frontend Setup
-
-```bash
-npm install
-npm run dev
-```
-
-Visit `http://localhost:3000/dashboard/today` to view the tasks dashboard.
-
-Test data is pre-populated:
-- 1 lead (John Smith)
-- 1 application
-- 2 pending tasks (call in 2h, email in 4h)
-- 1 completed task (review)
-
-### Edge Function Deployment
-
-```bash
-supabase functions deploy create-task
-```
-
-Deploys the TypeScript function to handle task creation requests.
-
----
-
-## Technical Decisions
-
-1. **Multi-tenancy**: All tables include `tenant_id` for secure data isolation via RLS
-2. **Type Safety**: Full TypeScript implementation with strict type definitions
-3. **Real-time Updates**: REPLICA IDENTITY FULL enables Supabase Realtime for live task updates
-4. **Validation**: Comprehensive input validation at both Edge Function and frontend
-5. **Performance**: Indexes on common query patterns (tenant_id, status, due_at)
-6. **Responsive UI**: Mobile-friendly design using Tailwind CSS utility classes
-7. **State Management**: React Query for efficient server state and caching
-
-## Testing Notes
-
-- Database constraints validated (task type enum, date validation)
-- RLS policies tested with different user roles
-- Edge Function handles edge cases (invalid UUID, past dates, missing fields)
-- Frontend gracefully handles loading, error, and success states
-- Dashboard displays correct pending task count and statistics
-
----
-
-**Status**: Complete and ready for production  
-**Last Updated**: December 4, 2025
-
-
-1. **Multi-tenancy**: All tables include `tenant_id` for tenant isolation via RLS
-2. **Team-based Access**: Supports both individual ownership and team assignment for leads
-3. **Type Safety**: Full TypeScript implementation with type definitions
-4. **Validation**: Comprehensive input validation at both Edge Function and frontend levels
-5. **Real-time Updates**: Supabase Realtime for instant task notifications
-6. **Responsive UI**: Tailwind CSS for professional, mobile-friendly design
-
-## Testing Notes
-
-- Schema constraints validated (e.g., task type enum, date range checks)
-- RLS policies tested with different user roles (admin/counselor)
-- Edge Function handles edge cases (invalid UUID, past dates, missing fields)
-- Frontend gracefully handles loading, error, and success states
-
----
-
-**Completed**: December 4, 2025
+**Project**: LearnLynk CRM Technical Assessment  
+**Status**: All 5 sections complete and ready for production
