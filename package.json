@@ -1,7 +1,7 @@
 {
-  "name": "learnlynk-assessment",
+  "name": "crm-platform",
   "version": "1.0.0",
-  "description": "LearnLynk Technical Assessment - Full-stack CRM application",
+  "description": "CRM Platform - Full-stack lead and task management application",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
