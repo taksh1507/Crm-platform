@@ -21,7 +21,7 @@ Complete technical assessment demonstrating full-stack development with:
 ##  All 5 Sections Complete
 
 ### SECTION 1  Supabase Schema Challenge
-**File**: ackend/schema.sql
+**File**: `backend/schema.sql`
 
 Creates 3 tables with all requirements:
 - **leads**: id, tenant_id, owner_id, team_id, name, email, phone, stage, created_at, updated_at
@@ -36,22 +36,22 @@ Creates 3 tables with all requirements:
 - REPLICA IDENTITY FULL for Supabase Realtime
 
 ### SECTION 2  RLS & Policies Test
-**File**: ackend/rls_policies.sql
+**File**: `backend/rls_policies.sql`
 
 Row-Level Security policies on leads table:
 - **SELECT**: Admins see all leads in tenant; counselors see leads assigned to them OR their teams
 - **INSERT**: Only admins and counselors can create leads
 
-Uses JWT claims: uth.jwt() ->> 'role' and uth.jwt() ->> 'user_id' for policy enforcement.
+Uses JWT claims: `auth.jwt() ->> 'role'` and `auth.jwt() ->> 'user_id'` for policy enforcement.
 
 ### SECTION 3  Edge Function Task
-**File**: ackend/edge-functions/create-task/index.ts
+**File**: `backend/edge-functions/create-task/index.ts`
 
 POST /create-task endpoint that:
 1. Accepts JSON: { "application_id": "uuid", "task_type": "call|email|review", "due_at": "ISO-timestamp" }
 2. Validates: task_type, due_at (must be future), application_id (valid UUID)
 3. Inserts task into Supabase tasks table
-4. Broadcasts Supabase Realtime event: 	ask.created
+4. Broadcasts Supabase Realtime event: `task.created`
 5. Returns: { "success": true, "task_id": "uuid" } or error with status codes 400/500
 
 ### SECTION 4  Mini Frontend Exercise
@@ -80,40 +80,40 @@ Stripe implementation flow:
 ##  Quick Start
 
 1. **Clone & Setup**
-   \\\ash
+   ```bash
    npm install
-   \\\
+   ```
 
 2. **Environment** - Copy .env.example to .env.local and fill in Supabase credentials
 
 3. **Database** - Run in Supabase SQL Editor:
-   - ackend/schema.sql (creates tables, indexes, test data)
-   - ackend/rls_policies.sql (enables RLS)
+   - `backend/schema.sql` (creates tables, indexes, test data)
+   - `backend/rls_policies.sql` (enables RLS)
 
 4. **Run**
-   \\\ash
+   ```bash
    npm run dev
-   \\\
+   ```
    Open http://localhost:3000/dashboard/today
 
 ---
 
 ##  Project Structure
 
-\\\
+```
 backend/
- schema.sql                    # Database schema
- rls_policies.sql              # RLS policies
- edge-functions/create-task/   # Edge Function
+  schema.sql                    # Database schema
+  rls_policies.sql              # RLS policies
+  edge-functions/create-task/   # Edge Function
 
 pages/
- _app.tsx                      # React Query provider
- dashboard/today.tsx           # Task dashboard
+  _app.tsx                      # React Query provider
+  dashboard/today.tsx           # Task dashboard
 
 styles/globals.css                # Global styles
 package.json, tsconfig.json, tailwind.config.js
 .env.example                      # Environment template
-\\\
+```
 
 ---
 
